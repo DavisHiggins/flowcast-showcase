@@ -1,15 +1,18 @@
 <p align="center">
-  <a href="https://flowcastweb.vercel.app"><img src="assets/hero.gif" width="100%" alt="Flowcast — see where the city moves next. Decorative animated cover: the Flowcast wordmark beside a rotated city grid with flowing cyan demand lines." /></a>
+  <a href="https://flowcastweb.vercel.app"><img src="assets/hero.svg" width="100%" alt="Flowcast: see where the city moves next. Animated cover with the Flowcast wordmark beside a city grid of taxi zones pulsing with demand and a forecast panel stepping through 1, 6, and 24-hour horizons." /></a>
 </p>
 
 <h1 align="center">Flowcast</h1>
 
+<p align="center"><strong>A machine-learning platform that forecasts hourly taxi demand for every New York City taxi zone, 1, 6, and 24 hours ahead.</strong></p>
+
 <p align="center">
-  <strong>A machine-learning platform that forecasts hourly taxi demand for every New York City taxi zone, 1, 6, and 24 hours ahead.</strong><br />
-  <a href="https://flowcastweb.vercel.app"><strong>Open Flowcast ↗</strong></a> · <a href="https://flowcastweb.vercel.app/model">Model card</a> · <a href="https://www.higginsd.com/work/flowcast">Case study</a> · <a href="https://davishiggins.com">Davis Higgins</a>
+  <a href="https://flowcastweb.vercel.app"><img src="assets/btn-open.svg" height="44" alt="Open Flowcast" /></a>&nbsp;
+  <a href="https://www.higginsd.com/work/flowcast"><img src="assets/btn-case.svg" height="44" alt="Case study" /></a>&nbsp;
+  <a href="https://davishiggins.com"><img src="assets/btn-dh.svg" height="44" alt="Davis Higgins" /></a>
 </p>
 
-<p align="center"><sub>Live · Forecasts from published TLC data, not present-day demand · Built by Davis Higgins</sub></p>
+<p align="center"><sub>Live · Forecasts built from NYC's published trip records · Designed and built by Davis Higgins</sub></p>
 
 ---
 
@@ -19,56 +22,53 @@
   <img src="assets/demo.gif" width="880" alt="Screen recording of the Flowcast forecast map: switching the horizon from 1 to 6 to 24 hours, stepping the forecast origin back two hours, and opening a zone's predicted pickups, interval, and actual result." />
 </p>
 
-<p align="center"><sub>Real capture of flowcastweb.vercel.app/forecast in historical backtest mode. <a href="assets/demo.png">Static frame</a></sub></p>
+<p align="center"><sub>Real capture of flowcastweb.vercel.app/forecast. <a href="assets/demo.png">Static frame</a></sub></p>
 
 ## What it does
 
-- **A citywide forecast map.** Choose a forecast hour and a 1, 6, or 24-hour horizon. All 262 taxi zones are colored by expected pickups, and each zone opens to its prediction interval, the same hour last week, and the drivers behind the forecast.
-- **Backtests you can check.** Historical mode replays held-out hours and puts predicted, actual, and baseline demand side by side, so a forecast is never shown without something to compare it to.
-- **The model's work, in public.** A performance dashboard breaks error down by horizon, borough, time of day, and zone. A model card and architecture pages cover the data, features, evaluation split, quality gate, and limits.
+- **A citywide forecast map.** Choose a forecast hour and a 1, 6, or 24-hour horizon. All 262 taxi zones are colored by expected pickups, and each zone opens to its prediction range, the same hour last week, and what's driving the forecast.
+- **Backtests you can check.** Historical mode replays past hours and puts predicted, actual, and baseline demand side by side, so a forecast is never shown without something to compare it to.
+- **Performance in the open.** A dashboard breaks accuracy down by horizon, borough, time of day, and zone.
 
 ## Why I built it
 
-New York publishes every yellow-taxi trip, but as monthly files of raw records. Turning that into a forward view of how many pickups each zone should expect takes a modeling pipeline, not a spreadsheet.
+New York publishes every yellow-taxi trip, but as monthly files of raw records. Turning that into a forward view of how many pickups each zone should expect takes a real modeling system, not a spreadsheet.
 
-A forecast is only useful if it can be checked. I wanted honest evaluation against a simple baseline, stated uncertainty, and a clear line between what the model predicts and what actually happened. I also wanted every number on the site to trace back to the model run that produced it.
+A forecast is only useful if it can be checked, so Flowcast is built around honest comparison: every prediction sits next to a baseline and the actual outcome, and every number on the site traces back to the model version that produced it.
 
 ## What I built
 
-Flowcast is my project from end to end: data engineering, modeling, AWS deployment, and the web product.
+Flowcast is mine from end to end: data engineering, modeling, cloud deployment, and the web product.
 
-- Ingestion of NYC TLC trip records, NOAA hourly weather, and the official taxi-zone boundaries into Amazon S3
-- Leakage-safe time-series features and a single XGBoost model trained across every zone and horizon
-- A SageMaker Pipeline with evaluation, SHAP explanations, drift checks, and a quality gate in front of the model registry
-- Serverless inference behind AWS Lambda and API Gateway
-- The Next.js site: forecast map, backtest mode, performance dashboard, model card, and architecture pages
+- The data pipeline that turns raw trip records and weather into model-ready features
+- A forecasting model that covers every zone and horizon, and beats a same-hour-last-week baseline by about 25% on held-out months
+- Automated training, evaluation, and an approval step before any model reaches production
+- Cloud inference behind a protected API
+- The web product: forecast map, backtest mode, performance dashboard, and supporting pages
 
-## How it works
+<details>
+<summary><strong>How it's put together</strong></summary>
+
+<br />
 
 ```mermaid
 flowchart TB
-    TLC[NYC TLC trip records] --> S3[(Amazon S3)]
-    NOAA[NOAA hourly weather] --> S3
-    S3 --> P[SageMaker Pipeline<br/>features · train · evaluate]
-    P --> G{Quality gate}
-    G -- pass --> R[Model registry]
-    G -- fail --> X[Stop]
-    R --> E[Serverless endpoint]
-    E --> L[Lambda + API Gateway<br/>throttled, origin-restricted]
-    P --> F[(Precomputed forecasts<br/>same model version)]
-    L --> W[Next.js site on Vercel]
+    D[Public trip records<br/>and weather] --> P[Data and training pipeline]
+    P --> G{Approval check}
+    G -- pass --> M[Approved model]
+    M --> A[Forecast API]
+    M --> F[Published forecasts]
+    A --> W[Flowcast web app]
     F --> W
 ```
 
-### Engineering decisions
-
 | Decision | Why |
 |---|---|
-| **Features only look backward** | Lags and rolling windows are shifted so they only see hours before the forecast origin. The zone universe comes from the official lookup, not from demand, and encodings are fit on training data only. The pipeline also checks for leakage before a model can pass. |
-| **A quality gate in front of the registry** | A model is registered only if it beats the same-hour-last-week baseline by a set margin, stays under an error ceiling, and returns finite, non-negative predictions. A failing run stops instead of quietly shipping. |
-| **Same model, with or without the endpoint** | The site ships precomputed forecasts from the approved model version. Live endpoint results replace them only when the endpoint reports that same version, so the product keeps working if the endpoint is offline. The browser never calls SageMaker directly. |
+| **No peeking at the future** | Training and evaluation are strictly chronological, so every reported result is earned on hours the model never saw. |
+| **A model has to earn its release** | New models are compared against a simple baseline and checked for sane output before they're approved. A failing run stops instead of quietly shipping. |
+| **The site works even if the API sleeps** | The web app ships forecasts from the approved model version and only swaps in live results from that same version, so the product never goes dark. |
 
-One global model scores all 262 zones in a single batched request. Prediction intervals are calibrated on validation data only, never on the test period they're reported against.
+</details>
 
 ## Screens
 
@@ -78,46 +78,26 @@ One global model scores all 262 zones in a single batched request. Prediction in
     <td rowspan="2" width="38%" align="center"><img src="assets/screenshot-mobile.png" width="300" alt="Flowcast homepage on a phone: 'Forecast where NYC demand moves next.'" /></td>
   </tr>
   <tr>
-    <td><img src="assets/screenshot-evaluation.png" alt="Flowcast dashboard charts: citywide actual vs predicted vs one-week baseline over the test period, error by forecast horizon, and performance by borough." /></td>
+    <td><img src="assets/screenshot-evaluation.png" alt="Flowcast dashboard charts: citywide actual vs predicted vs one-week baseline, error by forecast horizon, and performance by borough." /></td>
   </tr>
 </table>
 
-<sub>Forecast map with zone detail · Held-out evaluation against the baseline · Homepage on mobile</sub>
+<sub>Forecast map with zone detail · Evaluation against the baseline · Homepage on mobile</sub>
 
 ## Technology
 
-| Layer | Technology | Responsibility |
-|---|---|---|
-| Data | NYC TLC trip records, NOAA hourly weather, TLC taxi-zone shapefile, Amazon S3 | Raw and processed data lake |
-| Modeling | Python, pandas, XGBoost, SHAP | Features, training, evaluation, explanations |
-| MLOps | Amazon SageMaker Pipelines and Model Registry | Repeatable training, quality gate, approved versions |
-| Serving | SageMaker serverless endpoint, AWS Lambda, API Gateway | Batched citywide scoring behind a throttled API |
-| Web | Next.js, TypeScript, Tailwind CSS, MapLibre GL, GSAP, Lenis | Forecast map, dashboard, model card |
-| Hosting | Vercel | Static export of the site |
+| Layer | Technology |
+|---|---|
+| Data and modeling | Python, pandas |
+| Cloud | AWS |
+| Web | Next.js, TypeScript, Tailwind CSS, MapLibre GL, GSAP |
+| Hosting | Vercel |
 
-## Evaluation and limits
+---
 
-<details>
-<summary><strong>How the model was evaluated</strong></summary>
+<p align="center">
+  <a href="https://flowcastweb.vercel.app"><img src="assets/btn-open.svg" height="44" alt="Open Flowcast" /></a>&nbsp;
+  <a href="https://github.com/DavisHiggins"><img src="assets/btn-more.svg" height="44" alt="More of my work" /></a>
+</p>
 
-<br />
-
-- **Data.** 31 months of yellow-taxi trips (January 2024 – July 2026, about 116 million trips) joined with hourly NOAA weather from Central Park.
-- **Split.** Chronological: train through December 2025, validation January – February 2026, held-out test March – July 2026.
-- **Baseline.** The same zone and hour one week earlier (168-hour seasonal naive).
-- **Result on the test period.** Weighted absolute percentage error (WAPE) of 0.186 against 0.247 for the baseline. That's about 25% lower error, and the model is ahead at every horizon (1h 0.179, 6h 0.191, 24h 0.189) and in every borough.
-- **Uncertainty.** The 80% and 95% intervals covered 83% and 96% of test outcomes.
-
-</details>
-
-- **Not live demand.** Forecast mode predicts the hours after the latest published TLC data, which runs about two months behind. The site states the data cutoff next to every forecast.
-- **Sparse zones are hard.** Outer-borough yellow-taxi demand is thin, so relative error there is much higher than in Manhattan. The dashboard shows this instead of averaging it away.
-- **Zones, not GPS.** TLC records identify taxi zones rather than exact locations, so the map draws official zone boundaries.
-
-## About this repository
-
-This is a documentation-only showcase. Flowcast's pipeline code, infrastructure, model artifacts, and configuration are private and aren't included here.
-
-**[Open Flowcast ↗](https://flowcastweb.vercel.app)** · Built by [Davis Higgins](https://davishiggins.com) · [More of my work](https://github.com/DavisHiggins)
-
-<sub>© 2026 Davis Higgins. Text and images in this repository are shared for portfolio viewing. Trip data: NYC Taxi & Limousine Commission. Weather: NOAA. Map tiles © CARTO, © OpenStreetMap contributors. Not affiliated with the NYC TLC.</sub>
+<p align="center"><sub>© 2026 Davis Higgins. All rights reserved. Trip data: NYC Taxi &amp; Limousine Commission. Weather: NOAA. Map tiles © CARTO, © OpenStreetMap contributors.</sub></p>
